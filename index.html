@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1b5e20">
+<title>Controle de Adubos</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f5f3;color:#1d241d}
+header{background:#1b5e20;color:white;padding:18px 16px;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:21px}header small{opacity:.85}
+nav{display:flex;gap:6px;overflow:auto;background:white;padding:8px;position:sticky;top:67px;z-index:4;box-shadow:0 1px 4px #0002}
+nav button{border:0;background:#e8eee8;padding:10px 12px;border-radius:10px;white-space:nowrap;font-weight:bold;color:#28552b}
+nav button.active{background:#1b5e20;color:white}
+main{padding:14px;max-width:800px;margin:auto}.page{display:none}.page.active{display:block}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.card{background:white;border-radius:14px;padding:15px;box-shadow:0 1px 5px #0001}
+.card b{font-size:25px;display:block;margin-top:5px}.muted{color:#697169;font-size:13px}
+section.box{background:white;padding:15px;border-radius:14px;margin:12px 0;box-shadow:0 1px 5px #0001}
+h2{font-size:18px;margin:3px 0 14px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{font-size:13px;font-weight:bold;display:block;margin:9px 0 5px}
+input,select,textarea{width:100%;padding:11px;border:1px solid #ccd5cc;border-radius:9px;font-size:15px;background:white}
+button.primary{background:#1b5e20;color:white;border:0;padding:12px 15px;border-radius:9px;font-weight:bold;margin-top:12px}
+button.danger{background:#b3261e;color:white;border:0;padding:7px 9px;border-radius:7px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:9px 5px;border-bottom:1px solid #e1e5e1}th{font-size:12px;color:#596159}
+.formula{font-weight:bold}.empty{padding:20px;text-align:center;color:#777}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:white;padding:12px 18px;border-radius:10px;display:none;z-index:20}
+@media(max-width:500px){.cards{grid-template-columns:1fr 1fr}.row{grid-template-columns:1fr}table{font-size:13px}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<script>
+if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));
+</script>
+</head>
+<body>
+<header><h1>🌱 Controle de Adubos</h1><small>Sacos de 50 kg</small></header>
+<nav id="nav">
+<button class="active" onclick="show('inicio',this)">🏠 Início</button>
+<button onclick="show('estoque',this)">📦 Estoque</button>
+<button onclick="show('entrada',this)">➕ Entrada</button>
+<button onclick="show('venda',this)">💰 Venda</button>
+<button onclick="show('clientes',this)">👥 Clientes</button>
+<button onclick="show('formulas',this)">🧪 Fórmulas</button>
+</nav>
+<main>
+<div id="inicio" class="page active">
+<div class="cards">
+<div class="card">📦<span class="muted">Em estoque</span><b id="dashEstoque">0</b><span class="muted">sacos</span></div>
+<div class="card">💰<span class="muted">Vendidos</span><b id="dashVendidos">0</b><span class="muted">sacos</span></div>
+<div class="card">🚛<span class="muted">Recebidos</span><b id="dashRecebidos">0</b><span class="muted">sacos</span></div>
+<div class="card">👥<span class="muted">Clientes</span><b id="dashClientes">0</b></div>
+</div>
+<section class="box"><h2>Estoque por fórmula</h2><div id="resumo"></div></section>
+<section class="box"><h2>Últimas vendas</h2><div id="ultimasVendas"></div></section>
+</div>
+
+<div id="estoque" class="page">
+<section class="box"><h2>📦 Estoque atual</h2><div id="tabelaEstoque"></div></section>
+</div>
+
+<div id="entrada" class="page">
+<section class="box"><h2>➕ Registrar entrada</h2>
+<label>Fórmula</label><select id="entradaFormula"></select>
+<label>Quantidade de sacos de 50 kg</label><input id="entradaQtd" type="number" min="1" inputmode="numeric" placeholder="Ex.: 500">
+<label>Data</label><input id="entradaData" type="date">
+<label>Observação</label><textarea id="entradaObs" rows="2" placeholder="Opcional"></textarea>
+<button class="primary" onclick="addEntrada()">Registrar entrada</button></section>
+<section class="box"><h2>Histórico de entradas</h2><div id="historicoEntradas"></div></section>
+</div>
+
+<div id="venda" class="page">
+<section class="box"><h2>💰 Registrar venda</h2>
+<label>Cliente</label><select id="vendaCliente"></select>
+<label>Fórmula</label><select id="vendaFormula" onchange="atualizarDisponivel()"></select>
+<div class="muted" id="disponivelVenda">Disponível: 0 sacos</div>
+<label>Quantidade de sacos</label><input id="vendaQtd" type="number" min="1" inputmode="numeric">
+<label>Preço por saco (R$)</label><input id="vendaPreco" type="number" min="0" step="0.01" inputmode="decimal">
+<label>Data</label><input id="vendaData" type="date">
+<label>Forma de pagamento</label><select id="vendaPagamento"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Prazo</option><option>Outro</option></select>
+<label>Observação</label><textarea id="vendaObs" rows="2" placeholder="Opcional"></textarea>
+<button class="primary" onclick="addVenda()">Registrar venda</button></section>
+<section class="box"><h2>Histórico de vendas</h2><div id="historicoVendas"></div></section>
+</div>
+
+<div id="clientes" class="page">
+<section class="box"><h2>👥 Novo cliente</h2>
+<label>Nome</label><input id="clienteNome">
+<label>Telefone</label><input id="clienteTelefone" inputmode="tel">
+<label>Cidade</label><input id="clienteCidade">
+<label>Observação</label><textarea id="clienteObs" rows="2"></textarea>
+<button class="primary" onclick="addCliente()">Cadastrar cliente</button></section>
+<section class="box"><h2>Clientes cadastrados</h2><div id="listaClientes"></div></section>
+</div>
+
+<div id="formulas" class="page">
+<section class="box"><h2>🧪 Nova fórmula</h2>
+<label>Numeração da fórmula</label><input id="formulaNome" placeholder="Ex.: 20-05-20">
+<button class="primary" onclick="addFormula()">Cadastrar fórmula</button></section>
+<section class="box"><h2>Fórmulas cadastradas</h2><div id="listaFormulas"></div></section>
+</div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY='controle_adubos_v1';
+let db=JSON.parse(localStorage.getItem(KEY)||'null')||{formulas:[],clientes:[],entradas:[],vendas:[]};
+const today=()=>new Date().toISOString().slice(0,10);
+document.getElementById('entradaData').value=today();
+document.getElementById('vendaData').value=today();
+
+function save(){localStorage.setItem(KEY,JSON.stringify(db));renderAll()}
+function toast(s){let t=document.getElementById('toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',1800)}
+function show(id,btn){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');renderAll()}
+function qtyFormula(f){return db.entradas.filter(x=>x.formula===f).reduce((a,x)=>a+x.qtd,0)-db.vendas.filter(x=>x.formula===f).reduce((a,x)=>a+x.qtd,0)}
+function totalEntradas(){return db.entradas.reduce((a,x)=>a+x.qtd,0)}
+function totalVendas(){return db.vendas.reduce((a,x)=>a+x.qtd,0)}
+function addFormula(){let v=document.getElementById('formulaNome').value.trim();if(!v)return toast('Digite a fórmula');if(db.formulas.includes(v))return toast('Essa fórmula já existe');db.formulas.push(v);document.getElementById('formulaNome').value='';save();toast('Fórmula cadastrada')}
+function addCliente(){let nome=document.getElementById('clienteNome').value.trim();if(!nome)return toast('Digite o nome');db.clientes.push({id:Date.now(),nome,telefone:clienteTelefone.value.trim(),cidade:clienteCidade.value.trim(),obs:clienteObs.value.trim()});['clienteNome','clienteTelefone','clienteCidade','clienteObs'].forEach(id=>document.getElementById(id).value='');save();toast('Cliente cadastrado')}
+function addEntrada(){let formula=entradaFormula.value,qtd=Number(entradaQtd.value);if(!formula||!qtd||qtd<1)return toast('Preencha fórmula e quantidade');db.entradas.push({id:Date.now(),formula,qtd,data:entradaData.value||today(),obs:entradaObs.value.trim()});entradaQtd.value='';entradaObs.value='';save();toast('Entrada registrada')}
+function addVenda(){let clienteId=Number(vendaCliente.value),formula=vendaFormula.value,qtd=Number(vendaQtd.value),preco=Number(vendaPreco.value||0),disp=qtyFormula(formula);if(!clienteId||!formula||!qtd||qtd<1)return toast('Preencha cliente, fórmula e quantidade');if(qtd>disp)return toast('Quantidade maior que o estoque disponível');let c=db.clientes.find(x=>x.id===clienteId);db.vendas.push({id:Date.now(),clienteId,nomeCliente:c.nome,formula,qtd,preco,total:qtd*preco,data:vendaData.value||today(),pagamento:vendaPagamento.value,obs:vendaObs.value.trim()});vendaQtd.value='';vendaPreco.value='';vendaObs.value='';save();toast('Venda registrada')}
+function del(type,id){if(!confirm('Excluir este registro?'))return;db[type]=db[type].filter(x=>x.id!==id);save()}
+function atualizarDisponivel(){document.getElementById('disponivelVenda').textContent='Disponível: '+qtyFormula(vendaFormula.value)+' sacos'}
+function opts(selectId,arr,placeholder){let s=document.getElementById(selectId);s.innerHTML='<option value="">'+placeholder+'</option>'+arr.map(x=>`<option value="${x.id??x}">${x.nome??x}</option>`).join('')}
+function renderAll(){
+dashEstoque.textContent=totalEntradas()-totalVendas();dashVendidos.textContent=totalVendas();dashRecebidos.textContent=totalEntradas();dashClientes.textContent=db.clientes.length;
+opts('entradaFormula',db.formulas,'Selecione a fórmula');opts('vendaFormula',db.formulas,'Selecione a fórmula');opts('vendaCliente',db.clientes,'Selecione o cliente');atualizarDisponivel();
+resumo.innerHTML=db.formulas.length?'<table><tr><th>Fórmula</th><th>Recebidos</th><th>Vendidos</th><th>Disponível</th></tr>'+db.formulas.map(f=>{let e=db.entradas.filter(x=>x.formula===f).reduce((a,x)=>a+x.qtd,0),v=db.vendas.filter(x=>x.formula===f).reduce((a,x)=>a+x.qtd,0);return `<tr><td class="formula">${f}</td><td>${e}</td><td>${v}</td><td><b>${e-v}</b></td></tr>`}).join('')+'</table>':'<div class="empty">Cadastre sua primeira fórmula.</div>';
+tabelaEstoque.innerHTML=resumo.innerHTML;
+listaFormulas.innerHTML=db.formulas.length?'<table><tr><th>Fórmula</th><th>Disponível</th><th></th></tr>'+db.formulas.map(f=>`<tr><td class="formula">${f}</td><td>${qtyFormula(f)}</td><td><button class="danger" onclick="if(confirm('Excluir fórmula?')){db.formulas=db.formulas.filter(x=>x!=='${f}');save()}">Excluir</button></td></tr>`).join('')+'</table>':'<div class="empty">Nenhuma fórmula cadastrada.</div>';
+listaClientes.innerHTML=db.clientes.length?'<table><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th></th></tr>'+db.clientes.map(c=>`<tr><td>${c.nome}</td><td>${c.telefone||'-'}</td><td>${c.cidade||'-'}</td><td><button class="danger" onclick="del('clientes',${c.id})">Excluir</button></td></tr>`).join('')+'</table>':'<div class="empty">Nenhum cliente cadastrado.</div>';
+historicoEntradas.innerHTML=db.entradas.length?'<table><tr><th>Data</th><th>Fórmula</th><th>Sacos</th><th></th></tr>'+[...db.entradas].reverse().map(x=>`<tr><td>${x.data}</td><td class="formula">${x.formula}</td><td>${x.qtd}</td><td><button class="danger" onclick="del('entradas',${x.id})">Excluir</button></td></tr>`).join('')+'</table>':'<div class="empty">Nenhuma entrada registrada.</div>';
+historicoVendas.innerHTML=db.vendas.length?'<table><tr><th>Data</th><th>Cliente</th><th>Fórmula</th><th>Sacos</th><th>Total</th><th></th></tr>'+[...db.vendas].reverse().map(x=>`<tr><td>${x.data}</td><td>${x.nomeCliente}</td><td class="formula">${x.formula}</td><td>${x.qtd}</td><td>R$ ${x.total.toFixed(2).replace('.',',')}</td><td><button class="danger" onclick="del('vendas',${x.id})">Excluir</button></td></tr>`).join('')+'</table>':'<div class="empty">Nenhuma venda registrada.</div>';
+ultimasVendas.innerHTML=db.vendas.length?[...db.vendas].reverse().slice(0,5).map(x=>`<div style="padding:9px 0;border-bottom:1px solid #eee"><b>${x.nomeCliente}</b> — ${x.qtd} sacos de <b>${x.formula}</b><br><span class="muted">${x.data} · ${x.pagamento}</span></div>`).join(''):'<div class="empty">Nenhuma venda ainda.</div>';
+}
+renderAll();
+</script>
+</body>
+</html>
